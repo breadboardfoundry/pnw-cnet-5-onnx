@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import onnxruntime as ort
 
-from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
+from keras.layers import Conv2D, Dense, Dropout, Flatten, Input, MaxPooling2D
 from keras.models import Sequential
 from PIL import Image
 
@@ -49,10 +49,10 @@ def build_keras_model(nclasses: int) -> Sequential:
 
     model = Sequential()
 
+    model.add(Input(shape=(257, 1000, 1)))
     model.add(
         Conv2D(
             32, (5, 5),
-            input_shape=(257, 1000, 1),
             data_format="channels_last",
             activation="relu",
             padding="same",
