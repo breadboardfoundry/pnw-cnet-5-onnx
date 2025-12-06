@@ -98,18 +98,21 @@ def run_inference(
     Returns:
         Dictionary mapping filenames to predictions
     """
-    # Load ONNX model with optimizations
+    # Load ONNX model with CoreML GPU acceleration
     print(f"Loading ONNX model from: {model_path}")
     sess_options = ort.SessionOptions()
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess_options.intra_op_num_threads = 0  # 0 = use all available cores
-    sess_options.inter_op_num_threads = 0
-    sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
 
     session = ort.InferenceSession(
         model_path,
         sess_options=sess_options,
-        providers=["CPUExecutionProvider"],
+        providers=[
+            ("CoreMLExecutionProvider", {
+                "ModelFormat": "NeuralNetwork",
+                "MLComputeUnits": "CPUAndGPU",  # Avoid ANE which crashes on macOS 15
+            }),
+            "CPUExecutionProvider",
+        ],
     )
 
     # Get input/output names
