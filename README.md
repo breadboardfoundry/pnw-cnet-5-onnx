@@ -43,6 +43,10 @@ brew install sox
 uv sync
 ```
 
+### Download Audio Data
+
+Download `.wav` files into a `recordings/` directory. You can use recordings from the [PNW-Cnet dataset](https://zenodo.org/records/10895837) or your own field recordings.
+
 ### Convert Audio to Spectrograms
 
 ```bash
