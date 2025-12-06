@@ -11,6 +11,40 @@ Status: very much a work in progress
 4. Run the inference using the converted ONNX model
 5. Compare the performance and accuracy of both models
 
+# Usage
+
+## Prerequisites
+
+- Python 3.13+
+- [sox](http://sox.sourceforge.net/) command-line tool for audio processing
+
+Install sox on macOS:
+```bash
+brew install sox
+```
+
+Install Python dependencies:
+```bash
+uv sync
+```
+
+## Convert WAV to Spectrograms
+
+The model requires 257x1000 grayscale spectrogram images. Use `wav_to_spectrogram.py` to convert audio files:
+
+```bash
+# Single file
+.venv/bin/python wav_to_spectrogram.py recordings/Site_001_Rep_B.wav output_spectrograms/
+
+# Entire directory (recursive)
+.venv/bin/python wav_to_spectrogram.py recordings/ output_spectrograms/
+
+# Custom clip duration (default is 12 seconds)
+.venv/bin/python wav_to_spectrogram.py recordings/ output_spectrograms/ --clip-duration 10
+```
+
+Audio files are split into 12-second clips, and each clip produces one spectrogram image named `{filename}_part_001.png`, `_part_002.png`, etc.
+
 # References
 
 Dataset: https://zenodo.org/records/10895837
