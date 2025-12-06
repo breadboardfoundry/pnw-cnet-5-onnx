@@ -71,6 +71,52 @@ The script outputs:
 - Top-k predictions regardless of threshold
 - Optional CSV with raw prediction scores for all 135 classes
 
+## Convert H5 Model to ONNX
+
+Convert the Keras H5 model to ONNX format for optimized inference:
+
+```bash
+# Default paths (model/Final_Model.h5 -> model/Final_Model.onnx)
+uv run python convert_to_onnx.py
+
+# Custom paths
+uv run python convert_to_onnx.py --input model/Final_Model.h5 --output model/Final_Model.onnx
+
+# Specify ONNX opset version
+uv run python convert_to_onnx.py --opset 15
+```
+
+The conversion script will:
+- Load the Keras model architecture and weights
+- Convert to ONNX format using tf2onnx
+- Verify the conversion by comparing outputs between Keras and ONNX models
+
+## Run Inference with ONNX Model
+
+Once you have the ONNX model, run inference using ONNX Runtime:
+
+```bash
+# Basic usage
+uv run python run_inference_onnx.py output_spectrograms/
+
+# Adjust confidence threshold (default: 0.5)
+uv run python run_inference_onnx.py output_spectrograms/ --threshold 0.3
+
+# Show more top predictions per image (default: 5)
+uv run python run_inference_onnx.py output_spectrograms/ --top-k 10
+
+# Export results to CSV
+uv run python run_inference_onnx.py output_spectrograms/ --output predictions_onnx.csv
+
+# Use a different model file
+uv run python run_inference_onnx.py output_spectrograms/ --model path/to/model.onnx
+
+# Adjust batch size for inference (default: 32)
+uv run python run_inference_onnx.py output_spectrograms/ --batch-size 64
+```
+
+The ONNX inference script uses ONNX Runtime with CoreML acceleration on macOS when available, falling back to CPU execution.
+
 # References
 
 Dataset: https://zenodo.org/records/10895837
