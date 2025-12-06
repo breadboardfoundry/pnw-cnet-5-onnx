@@ -2,6 +2,10 @@
 
 This repository documents converting the [PNW-Cnet-5](https://github.com/zjruff/PNW-Cnet-5) bioacoustic classifier from Keras/TensorFlow to ONNX format, achieving **12x faster inference** on Apple Silicon using CoreML acceleration.
 
+This is meant to be informative and potentially help you if you are working with a similar model.
+
+The discussion forum on this repo is open and let me know if you have any questions or suggestions!
+
 ## Results Summary
 
 | Metric | Keras (CPU) | ONNX (CoreML + ANE) |
