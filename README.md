@@ -34,13 +34,13 @@ The model requires 257x1000 grayscale spectrogram images. Use `wav_to_spectrogra
 
 ```bash
 # Single file
-.venv/bin/python wav_to_spectrogram.py recordings/Site_001_Rep_B.wav output_spectrograms/
+uv run wav_to_spectrogram.py recordings/Site_001_Rep_B.wav output_spectrograms/
 
 # Entire directory (recursive)
-.venv/bin/python wav_to_spectrogram.py recordings/ output_spectrograms/
+uv run wav_to_spectrogram.py recordings/ output_spectrograms/
 
 # Custom clip duration (default is 12 seconds)
-.venv/bin/python wav_to_spectrogram.py recordings/ output_spectrograms/ --clip-duration 10
+uv run wav_to_spectrogram.py recordings/ output_spectrograms/ --clip-duration 10
 ```
 
 Audio files are split into 12-second clips, and each clip produces one spectrogram image named `{filename}_part_001.png`, `_part_002.png`, etc.
