@@ -3,7 +3,7 @@ A repo testing performance improvements of the PNW CNET 5 Model in ONNX.
 
 Status: very much a work in progress
 
-# Steps to run
+# Basic Steps
 
 1. Download the sample dataset: https://zenodo.org/records/10895837
 2. Convert the audio files to the image format used by the model.
