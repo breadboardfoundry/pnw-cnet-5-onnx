@@ -1,25 +1,16 @@
 """
-Compare inference results between Keras H5 and ONNX models.
+Compare inference results between Keras H5, ONNX, and ONNX-slim models.
 
-This script runs inference on the same images using both models and compares
-the outputs to verify the ONNX conversion is accurate.
+This script runs inference on the same images using all models and compares
+the outputs to verify the ONNX conversion is accurate and measure performance.
 """
 
 import argparse
-import os
 import time
 from pathlib import Path
 
-# Force TensorFlow to use CPU only (must be set before importing TF)
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-
 import numpy as np
 import onnxruntime as ort
-import tensorflow as tf
-
-# Disable GPU for TensorFlow
-tf.config.set_visible_devices([], "GPU")
 
 from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
 from keras.models import Sequential
@@ -113,14 +104,60 @@ def load_images_batch(image_paths: list[str]) -> np.ndarray:
     return np.stack(images, axis=0)
 
 
+def create_onnx_session(model_path: str) -> ort.InferenceSession:
+    """Create an ONNX Runtime session with CoreML optimization."""
+    sess_options = ort.SessionOptions()
+    sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    sess_options.intra_op_num_threads = 0  # 0 = use all available cores
+    sess_options.inter_op_num_threads = 0
+    sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+
+    return ort.InferenceSession(
+        model_path,
+        sess_options=sess_options,
+        providers=[
+            ("CoreMLExecutionProvider", {
+                "ModelFormat": "NeuralNetwork",
+                "MLComputeUnits": "ALL",  # CPU + GPU + Neural Engine
+            }),
+            "CPUExecutionProvider",
+        ],
+    )
+
+
+def run_onnx_inference(
+    session: ort.InferenceSession,
+    images: np.ndarray,
+    name: str,
+    batch_size: int = 100,
+) -> tuple[np.ndarray, float]:
+    """Run ONNX inference and return predictions with timing."""
+    input_name = session.get_inputs()[0].name
+    print(f"Running {name} inference on {len(images)} images...", flush=True)
+
+    start = time.perf_counter()
+    predictions_list = []
+    for i in range(0, len(images), batch_size):
+        batch = images[i:i + batch_size]
+        batch_preds = session.run(None, {input_name: batch})[0]
+        predictions_list.append(batch_preds)
+        print(f"  Processed {min(i + batch_size, len(images))}/{len(images)}", flush=True)
+    predictions = np.vstack(predictions_list)
+    elapsed = time.perf_counter() - start
+    print(f"  {name} completed in {elapsed:.2f}s", flush=True)
+
+    return predictions, elapsed
+
+
 def run_comparison(
     input_dir: str,
     h5_model_path: str,
     onnx_model_path: str,
+    onnx_slim_model_path: str | None = None,
     threshold: float = 0.5,
 ) -> dict:
     """
-    Run inference with both models and compare results.
+    Run inference with all models and compare results.
 
     Returns:
         Dictionary with comparison statistics
@@ -140,27 +177,15 @@ def run_comparison(
     keras_model = build_keras_model(NUM_CLASSES)
     keras_model.load_weights(h5_model_path)
 
-    # Load ONNX model with optimizations
+    # Load ONNX model
     print(f"Loading ONNX model from: {onnx_model_path}")
-    sess_options = ort.SessionOptions()
-    sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess_options.intra_op_num_threads = 0  # 0 = use all available cores
-    sess_options.inter_op_num_threads = 0
-    sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+    onnx_session = create_onnx_session(onnx_model_path)
 
-    # Try CoreML with all compute units including Neural Engine
-    onnx_session = ort.InferenceSession(
-        onnx_model_path,
-        sess_options=sess_options,
-        providers=[
-            ("CoreMLExecutionProvider", {
-                "ModelFormat": "NeuralNetwork",
-                "MLComputeUnits": "ALL",  # CPU + GPU + Neural Engine
-            }),
-            "CPUExecutionProvider",
-        ],
-    )
-    onnx_input_name = onnx_session.get_inputs()[0].name
+    # Load ONNX-slim model if provided
+    onnx_slim_session = None
+    if onnx_slim_model_path:
+        print(f"Loading ONNX-slim model from: {onnx_slim_model_path}")
+        onnx_slim_session = create_onnx_session(onnx_slim_model_path)
 
     # Load all images
     print("\nLoading images...")
@@ -173,41 +198,54 @@ def run_comparison(
     keras_time = time.perf_counter() - keras_start
     print(f"  Keras completed in {keras_time:.2f}s", flush=True)
 
-    # Run ONNX inference (in batches for progress visibility)
-    # Smaller batch sizes often work better on CPU due to cache effects
-    print(f"Running ONNX inference on {len(all_images)} images...", flush=True)
-    onnx_start = time.perf_counter()
-    batch_size = 100
-    onnx_predictions_list = []
-    for i in range(0, len(all_images), batch_size):
-        batch = all_images[i:i + batch_size]
-        batch_preds = onnx_session.run(None, {onnx_input_name: batch})[0]
-        onnx_predictions_list.append(batch_preds)
-        print(f"  Processed {min(i + batch_size, len(all_images))}/{len(all_images)}", flush=True)
-    onnx_predictions = np.vstack(onnx_predictions_list)
-    onnx_time = time.perf_counter() - onnx_start
-    print(f"  ONNX completed in {onnx_time:.2f}s", flush=True)
+    # Run ONNX inference
+    onnx_predictions, onnx_time = run_onnx_inference(
+        onnx_session, all_images, "ONNX"
+    )
+
+    # Run ONNX-slim inference if available
+    onnx_slim_predictions = None
+    onnx_slim_time = None
+    if onnx_slim_session:
+        onnx_slim_predictions, onnx_slim_time = run_onnx_inference(
+            onnx_slim_session, all_images, "ONNX-slim"
+        )
 
     # Compare predictions
     print("\n" + "=" * 70)
     print("COMPARISON RESULTS")
     print("=" * 70)
 
-    # Numerical comparison
-    abs_diff = np.abs(keras_predictions - onnx_predictions)
-    max_diff = np.max(abs_diff)
-    mean_diff = np.mean(abs_diff)
-    std_diff = np.std(abs_diff)
-
-    print(f"\nNumerical Comparison:")
-    print(f"  Max absolute difference:  {max_diff:.2e}")
-    print(f"  Mean absolute difference: {mean_diff:.2e}")
-    print(f"  Std absolute difference:  {std_diff:.2e}")
-
-    # Check if predictions match within tolerance
     tolerance = 1e-4
-    matching = np.allclose(keras_predictions, onnx_predictions, atol=tolerance)
-    print(f"\n  Predictions match (tolerance={tolerance}): {'YES' if matching else 'NO'}")
+
+    # Helper function for pairwise comparison
+    def compare_predictions(pred_a, pred_b, name_a, name_b):
+        abs_diff = np.abs(pred_a - pred_b)
+        max_diff = np.max(abs_diff)
+        mean_diff = np.mean(abs_diff)
+        matching = np.allclose(pred_a, pred_b, atol=tolerance)
+        return max_diff, mean_diff, matching
+
+    # Keras vs ONNX
+    keras_onnx_max, keras_onnx_mean, keras_onnx_match = compare_predictions(
+        keras_predictions, onnx_predictions, "Keras", "ONNX"
+    )
+
+    print(f"\nNumerical Comparison (Keras vs ONNX):")
+    print(f"  Max absolute difference:  {keras_onnx_max:.2e}")
+    print(f"  Mean absolute difference: {keras_onnx_mean:.2e}")
+    print(f"  Predictions match (tolerance={tolerance}): {'YES' if keras_onnx_match else 'NO'}")
+
+    # ONNX vs ONNX-slim (if available)
+    onnx_slim_match = None
+    if onnx_slim_predictions is not None:
+        onnx_slim_max, onnx_slim_mean, onnx_slim_match = compare_predictions(
+            onnx_predictions, onnx_slim_predictions, "ONNX", "ONNX-slim"
+        )
+        print(f"\nNumerical Comparison (ONNX vs ONNX-slim):")
+        print(f"  Max absolute difference:  {onnx_slim_max:.2e}")
+        print(f"  Mean absolute difference: {onnx_slim_mean:.2e}")
+        print(f"  Predictions match (tolerance={tolerance}): {'YES' if onnx_slim_match else 'NO'}")
 
     # Classification comparison (using threshold)
     keras_detections = keras_predictions >= threshold
@@ -219,25 +257,34 @@ def run_comparison(
     detection_accuracy = matching_detections / total_predictions * 100
 
     print(f"\nClassification Comparison (threshold={threshold}):")
-    print(f"  Detection decisions match: {'YES' if detection_match else 'NO'}")
-    print(f"  Matching decisions: {matching_detections}/{total_predictions} ({detection_accuracy:.2f}%)")
+    print(f"  Keras vs ONNX match: {'YES' if detection_match else 'NO'} ({detection_accuracy:.2f}%)")
 
-    # Per-image comparison
-    print(f"\nPer-Image Analysis:")
-    images_with_diff = 0
-    for i, filepath in enumerate(png_files):
-        img_max_diff = np.max(np.abs(keras_predictions[i] - onnx_predictions[i]))
-        if img_max_diff > tolerance:
-            images_with_diff += 1
+    if onnx_slim_predictions is not None:
+        onnx_slim_detections = onnx_slim_predictions >= threshold
+        slim_detection_match = np.array_equal(onnx_detections, onnx_slim_detections)
+        slim_matching = np.sum(onnx_detections == onnx_slim_detections)
+        slim_accuracy = slim_matching / total_predictions * 100
+        print(f"  ONNX vs ONNX-slim match: {'YES' if slim_detection_match else 'NO'} ({slim_accuracy:.2f}%)")
 
-    print(f"  Images with differences > {tolerance}: {images_with_diff}/{len(png_files)}")
-
-    # Timing comparison
+    # Performance comparison
     print(f"\nPerformance Comparison ({len(png_files)} images):")
-    print(f"  Keras time:  {keras_time:.3f}s ({keras_time/len(png_files)*1000:.2f}ms per image)")
-    print(f"  ONNX time:   {onnx_time:.3f}s ({onnx_time/len(png_files)*1000:.2f}ms per image)")
-    speedup = keras_time / onnx_time if onnx_time > 0 else float('inf')
-    print(f"  ONNX speedup: {speedup:.2f}x")
+    print(f"  {'Model':<12} {'Time':>10} {'Per Image':>12} {'vs Keras':>10}")
+    print(f"  {'-'*12} {'-'*10} {'-'*12} {'-'*10}")
+
+    keras_ms = keras_time / len(png_files) * 1000
+    print(f"  {'Keras':<12} {keras_time:>9.2f}s {keras_ms:>10.2f}ms {'1.00x':>10}")
+
+    onnx_ms = onnx_time / len(png_files) * 1000
+    onnx_speedup = keras_time / onnx_time if onnx_time > 0 else float('inf')
+    print(f"  {'ONNX':<12} {onnx_time:>9.2f}s {onnx_ms:>10.2f}ms {onnx_speedup:>9.2f}x")
+
+    onnx_slim_speedup = None
+    if onnx_slim_time is not None:
+        slim_ms = onnx_slim_time / len(png_files) * 1000
+        onnx_slim_speedup = keras_time / onnx_slim_time if onnx_slim_time > 0 else float('inf')
+        slim_vs_onnx = onnx_time / onnx_slim_time if onnx_slim_time > 0 else float('inf')
+        print(f"  {'ONNX-slim':<12} {onnx_slim_time:>9.2f}s {slim_ms:>10.2f}ms {onnx_slim_speedup:>9.2f}x")
+        print(f"\n  ONNX-slim vs ONNX: {slim_vs_onnx:.2f}x {'faster' if slim_vs_onnx > 1 else 'slower'}")
 
     # Top prediction comparison
     print(f"\nTop Prediction Comparison (first 5 images):")
@@ -251,43 +298,56 @@ def run_comparison(
         keras_top_conf = keras_predictions[i][keras_top_idx]
         onnx_top_conf = onnx_predictions[i][onnx_top_idx]
 
-        match_str = "MATCH" if keras_top_idx == onnx_top_idx else "DIFFER"
         print(f"\n  {filepath.name}:")
-        print(f"    Keras: {keras_top_class} ({keras_top_conf:.4f})")
-        print(f"    ONNX:  {onnx_top_class} ({onnx_top_conf:.4f})")
-        print(f"    Status: {match_str}")
+        print(f"    Keras:     {keras_top_class} ({keras_top_conf:.4f})")
+        print(f"    ONNX:      {onnx_top_class} ({onnx_top_conf:.4f})")
+
+        if onnx_slim_predictions is not None:
+            slim_top_idx = np.argmax(onnx_slim_predictions[i])
+            slim_top_class = CLASSES[slim_top_idx]
+            slim_top_conf = onnx_slim_predictions[i][slim_top_idx]
+            print(f"    ONNX-slim: {slim_top_class} ({slim_top_conf:.4f})")
+
+        all_match = keras_top_idx == onnx_top_idx
+        if onnx_slim_predictions is not None:
+            all_match = all_match and (onnx_top_idx == slim_top_idx)
+        print(f"    Status: {'ALL MATCH' if all_match else 'DIFFER'}")
 
     # Summary
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
 
-    if matching and detection_match:
-        print("\nModels produce IDENTICAL results within tolerance.")
-        print("The ONNX conversion is successful.")
+    if keras_onnx_match and detection_match:
+        print("\nKeras and ONNX produce IDENTICAL results within tolerance.")
     elif detection_match:
-        print("\nModels produce SAME classification decisions.")
+        print("\nKeras and ONNX produce SAME classification decisions.")
         print("Minor numerical differences exist but don't affect predictions.")
     else:
-        print("\nWARNING: Models produce DIFFERENT classification decisions.")
-        print("Review the conversion process.")
+        print("\nWARNING: Keras and ONNX produce DIFFERENT classification decisions.")
+
+    if onnx_slim_predictions is not None:
+        if onnx_slim_match:
+            print("ONNX and ONNX-slim produce IDENTICAL results.")
+        else:
+            print("ONNX and ONNX-slim have minor numerical differences.")
 
     return {
-        "max_diff": max_diff,
-        "mean_diff": mean_diff,
-        "std_diff": std_diff,
-        "matching": matching,
+        "keras_onnx_max_diff": keras_onnx_max,
+        "keras_onnx_match": keras_onnx_match,
         "detection_match": detection_match,
         "detection_accuracy": detection_accuracy,
         "keras_time": keras_time,
         "onnx_time": onnx_time,
-        "speedup": speedup,
+        "onnx_speedup": onnx_speedup,
+        "onnx_slim_time": onnx_slim_time,
+        "onnx_slim_speedup": onnx_slim_speedup,
     }
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compare Keras H5 and ONNX model inference results"
+        description="Compare Keras H5, ONNX, and ONNX-slim model inference results"
     )
     parser.add_argument(
         "input_dir",
@@ -305,6 +365,12 @@ def main():
         type=str,
         default="model/Final_Model.onnx",
         help="Path to ONNX model (default: model/Final_Model.onnx)",
+    )
+    parser.add_argument(
+        "--onnx-slim-model",
+        type=str,
+        default=None,
+        help="Path to ONNX-slim model (optional)",
     )
     parser.add_argument(
         "--threshold",
@@ -328,11 +394,16 @@ def main():
         print(f"Error: ONNX model not found: {args.onnx_model}")
         return 1
 
+    if args.onnx_slim_model and not Path(args.onnx_slim_model).exists():
+        print(f"Error: ONNX-slim model not found: {args.onnx_slim_model}")
+        return 1
+
     # Run comparison
     run_comparison(
         args.input_dir,
         args.h5_model,
         args.onnx_model,
+        args.onnx_slim_model,
         args.threshold,
     )
 
