@@ -117,6 +117,27 @@ uv run python run_inference_onnx.py output_spectrograms/ --batch-size 64
 
 The ONNX inference script uses ONNX Runtime with CoreML acceleration on macOS when available, falling back to CPU execution.
 
+## Compare Models
+
+Compare inference results between Keras and ONNX models to verify conversion accuracy:
+
+```bash
+# Basic comparison
+uv run python compare_models.py output_spectrograms/
+
+# Custom model paths
+uv run python compare_models.py output_spectrograms/ --h5-model model/Final_Model.h5 --onnx-model model/Final_Model.onnx
+
+# Adjust classification threshold
+uv run python compare_models.py output_spectrograms/ --threshold 0.3
+```
+
+The comparison script outputs:
+- Numerical differences (max, mean, std absolute difference)
+- Classification decision agreement
+- Performance timing comparison (Keras vs ONNX speedup)
+- Per-image top prediction comparison
+
 # References
 
 Dataset: https://zenodo.org/records/10895837
