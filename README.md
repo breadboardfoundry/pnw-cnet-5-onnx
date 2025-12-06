@@ -115,7 +115,7 @@ uv run python run_inference_onnx.py output_spectrograms/ --model path/to/model.o
 uv run python run_inference_onnx.py output_spectrograms/ --batch-size 64
 ```
 
-The ONNX inference script uses ONNX Runtime with CoreML acceleration on macOS when available, falling back to CPU execution.
+The ONNX inference script uses ONNX Runtime with CPU execution for reliability. CoreML acceleration is disabled due to [known issues on macOS 15](https://developer.apple.com/forums/thread/763561) with the Neural Engine and dynamic batch sizes.
 
 ## Compare Models
 

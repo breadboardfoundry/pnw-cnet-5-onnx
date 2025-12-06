@@ -98,11 +98,11 @@ def run_inference(
     Returns:
         Dictionary mapping filenames to predictions
     """
-    # Load ONNX model
+    # Load ONNX model (CPU only for reliability - CoreML has issues on macOS 15)
     print(f"Loading ONNX model from: {model_path}")
     session = ort.InferenceSession(
         model_path,
-        providers=["CoreMLExecutionProvider", "CPUExecutionProvider"],
+        providers=["CPUExecutionProvider"],
     )
 
     # Get input/output names

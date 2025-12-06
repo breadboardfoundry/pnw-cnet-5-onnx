@@ -6,11 +6,21 @@ the outputs to verify the ONNX conversion is accurate.
 """
 
 import argparse
+import os
 import time
 from pathlib import Path
 
+# Force TensorFlow to use CPU only (must be set before importing TF)
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import numpy as np
 import onnxruntime as ort
+import tensorflow as tf
+
+# Disable GPU for TensorFlow
+tf.config.set_visible_devices([], "GPU")
+
 from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D
 from keras.models import Sequential
 from PIL import Image
@@ -130,11 +140,11 @@ def run_comparison(
     keras_model = build_keras_model(NUM_CLASSES)
     keras_model.load_weights(h5_model_path)
 
-    # Load ONNX model
+    # Load ONNX model (CPU only for reliability - CoreML has issues with dynamic batch sizes)
     print(f"Loading ONNX model from: {onnx_model_path}")
     onnx_session = ort.InferenceSession(
         onnx_model_path,
-        providers=["CoreMLExecutionProvider", "CPUExecutionProvider"],
+        providers=["CPUExecutionProvider"],
     )
     onnx_input_name = onnx_session.get_inputs()[0].name
 
@@ -143,16 +153,25 @@ def run_comparison(
     all_images = load_images_batch([str(f) for f in png_files])
 
     # Run Keras inference
-    print("\nRunning Keras inference...")
+    print(f"\nRunning Keras inference on {len(all_images)} images...", flush=True)
     keras_start = time.perf_counter()
-    keras_predictions = keras_model.predict(all_images, verbose=0)
+    keras_predictions = keras_model.predict(all_images, verbose=1)
     keras_time = time.perf_counter() - keras_start
+    print(f"  Keras completed in {keras_time:.2f}s", flush=True)
 
-    # Run ONNX inference
-    print("Running ONNX inference...")
+    # Run ONNX inference (in batches for progress visibility)
+    print(f"Running ONNX inference on {len(all_images)} images...", flush=True)
     onnx_start = time.perf_counter()
-    onnx_predictions = onnx_session.run(None, {onnx_input_name: all_images})[0]
+    batch_size = 100
+    onnx_predictions_list = []
+    for i in range(0, len(all_images), batch_size):
+        batch = all_images[i:i + batch_size]
+        batch_preds = onnx_session.run(None, {onnx_input_name: batch})[0]
+        onnx_predictions_list.append(batch_preds)
+        print(f"  Processed {min(i + batch_size, len(all_images))}/{len(all_images)}", flush=True)
+    onnx_predictions = np.vstack(onnx_predictions_list)
     onnx_time = time.perf_counter() - onnx_start
+    print(f"  ONNX completed in {onnx_time:.2f}s", flush=True)
 
     # Compare predictions
     print("\n" + "=" * 70)
