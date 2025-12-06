@@ -1,6 +1,8 @@
 # pnw-cnet-5-onnx
 A repo testing performance improvements of the PNW CNET 5 Model in ONNX. 
 
+Status: very much a work in progress
+
 # Steps to run
 
 1. Download the sample dataset: https://zenodo.org/records/10895837
