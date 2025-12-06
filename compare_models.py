@@ -140,11 +140,25 @@ def run_comparison(
     keras_model = build_keras_model(NUM_CLASSES)
     keras_model.load_weights(h5_model_path)
 
-    # Load ONNX model (CPU only for reliability - CoreML has issues with dynamic batch sizes)
+    # Load ONNX model with optimizations
     print(f"Loading ONNX model from: {onnx_model_path}")
+    sess_options = ort.SessionOptions()
+    sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    sess_options.intra_op_num_threads = 0  # 0 = use all available cores
+    sess_options.inter_op_num_threads = 0
+    sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+
+    # Try CoreML with NeuralNetwork format and GPU (avoid ANE which crashes on macOS 15)
     onnx_session = ort.InferenceSession(
         onnx_model_path,
-        providers=["CPUExecutionProvider"],
+        sess_options=sess_options,
+        providers=[
+            ("CoreMLExecutionProvider", {
+                "ModelFormat": "NeuralNetwork",
+                "MLComputeUnits": "CPUAndGPU",
+            }),
+            "CPUExecutionProvider",
+        ],
     )
     onnx_input_name = onnx_session.get_inputs()[0].name
 
@@ -160,6 +174,7 @@ def run_comparison(
     print(f"  Keras completed in {keras_time:.2f}s", flush=True)
 
     # Run ONNX inference (in batches for progress visibility)
+    # Smaller batch sizes often work better on CPU due to cache effects
     print(f"Running ONNX inference on {len(all_images)} images...", flush=True)
     onnx_start = time.perf_counter()
     batch_size = 100
