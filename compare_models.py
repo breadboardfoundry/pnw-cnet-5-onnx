@@ -6,44 +6,29 @@ the outputs to verify the ONNX conversion is accurate and measure performance.
 """
 
 import argparse
+import os
 import time
 from pathlib import Path
 
 import numpy as np
 import onnxruntime as ort
-
-from keras.layers import Conv2D, Dense, Dropout, Flatten, Input, MaxPooling2D
-from keras.models import Sequential
 from PIL import Image
 
 
-# Class labels for the 135 bioacoustic categories
-CLASSES = [
-    "ACCO1", "ACGE1", "ACGE2", "ACST1", "AEAC1", "AEAC2", "Airplane", "ANCA1",
-    "ASOT1", "BOUM1", "BRCA1", "BRMA1", "BRMA2", "BUJA1", "BUJA2", "Bullfrog",
-    "BUVI1", "BUVI2", "CACA1", "CAGU1", "CAGU2", "CAGU3", "CALA1", "CALU1",
-    "CAPU1", "CAUS1", "CAUS2", "CCOO1", "CCOO2", "CECA1", "Chainsaw", "CHFA1",
-    "Chicken", "CHMI1", "CHMI2", "COAU1", "COAU2", "COBR1", "COCO1", "COSO1",
-    "Cow", "Creek", "Cricket", "CYST1", "CYST2", "DEFU1", "DEFU2", "Dog",
-    "DRPU1", "Drum", "EMDI1", "EMOB1", "FACO1", "FASP1", "Fly", "Frog",
-    "GADE1", "GLGN1", "Growler", "Gunshot", "HALE1", "HAPU1", "HEVE1",
-    "Highway", "Horn", "Human", "HYPI1", "IXNA1", "IXNA2", "JUHY1", "LEAL1",
-    "LECE1", "LEVI1", "LEVI2", "LOCU1", "MEFO1", "MEGA1", "MEKE1", "MEKE2",
-    "MEKE3", "MYTO1", "NUCO1", "OCPR1", "ODOC1", "ORPI1", "ORPI2", "PAFA1",
-    "PAFA2", "PAHA1", "PECA1", "PHME1", "PHNU1", "PILU1", "PILU2", "PIMA1",
-    "PIMA2", "POEC1", "POEC2", "PSFL1", "Rain", "Raptor", "SICU1", "SITT1",
-    "SITT2", "SPHY1", "SPHY2", "SPPA1", "SPPI1", "SPTH1", "STDE1", "STNE1",
-    "STNE2", "STOC_4Note", "STOC_Series", "Strix_Bark", "Strix_Whistle",
-    "STVA_8Note", "STVA_Insp", "STVA_Series", "Survey_Tone", "TADO1", "TADO2",
-    "TAMI1", "Thunder", "TRAE1", "Train", "Tree", "TUMI1", "TUMI2", "URAM1",
-    "VIHU1", "Wildcat", "Yarder", "ZEMA1", "ZOLE1",
-]
-
-NUM_CLASSES = 135
+def setup_tensorflow():
+    """Configure TensorFlow to use CPU only (Metal GPU produces incorrect results)."""
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+    os.environ["TF_METAL_DEVICE_SELECTOR"] = ""
+    import tensorflow as tf
+    tf.config.set_visible_devices([], 'GPU')
 
 
-def build_keras_model(nclasses: int) -> Sequential:
-    """Build the PNW-Cnet-5 CNN architecture."""
+def load_keras_model(h5_model_path: str, nclasses: int):
+    """Load Keras model with architecture and weights."""
+    from keras.layers import Conv2D, Dense, Dropout, Flatten, Input, MaxPooling2D
+    from keras.models import Sequential
+
     dropout_prop = 0.30
     n_fc_nodes = 512
 
@@ -86,7 +71,33 @@ def build_keras_model(nclasses: int) -> Sequential:
     model.add(Dropout(dropout_prop))
     model.add(Dense(nclasses, activation="sigmoid"))
 
+    model.load_weights(h5_model_path)
     return model
+
+
+# Class labels for the 135 bioacoustic categories
+CLASSES = [
+    "ACCO1", "ACGE1", "ACGE2", "ACST1", "AEAC1", "AEAC2", "Airplane", "ANCA1",
+    "ASOT1", "BOUM1", "BRCA1", "BRMA1", "BRMA2", "BUJA1", "BUJA2", "Bullfrog",
+    "BUVI1", "BUVI2", "CACA1", "CAGU1", "CAGU2", "CAGU3", "CALA1", "CALU1",
+    "CAPU1", "CAUS1", "CAUS2", "CCOO1", "CCOO2", "CECA1", "Chainsaw", "CHFA1",
+    "Chicken", "CHMI1", "CHMI2", "COAU1", "COAU2", "COBR1", "COCO1", "COSO1",
+    "Cow", "Creek", "Cricket", "CYST1", "CYST2", "DEFU1", "DEFU2", "Dog",
+    "DRPU1", "Drum", "EMDI1", "EMOB1", "FACO1", "FASP1", "Fly", "Frog",
+    "GADE1", "GLGN1", "Growler", "Gunshot", "HALE1", "HAPU1", "HEVE1",
+    "Highway", "Horn", "Human", "HYPI1", "IXNA1", "IXNA2", "JUHY1", "LEAL1",
+    "LECE1", "LEVI1", "LEVI2", "LOCU1", "MEFO1", "MEGA1", "MEKE1", "MEKE2",
+    "MEKE3", "MYTO1", "NUCO1", "OCPR1", "ODOC1", "ORPI1", "ORPI2", "PAFA1",
+    "PAFA2", "PAHA1", "PECA1", "PHME1", "PHNU1", "PILU1", "PILU2", "PIMA1",
+    "PIMA2", "POEC1", "POEC2", "PSFL1", "Rain", "Raptor", "SICU1", "SITT1",
+    "SITT2", "SPHY1", "SPHY2", "SPPA1", "SPPI1", "SPTH1", "STDE1", "STNE1",
+    "STNE2", "STOC_4Note", "STOC_Series", "Strix_Bark", "Strix_Whistle",
+    "STVA_8Note", "STVA_Insp", "STVA_Series", "Survey_Tone", "TADO1", "TADO2",
+    "TAMI1", "Thunder", "TRAE1", "Train", "Tree", "TUMI1", "TUMI2", "URAM1",
+    "VIHU1", "Wildcat", "Yarder", "ZEMA1", "ZOLE1",
+]
+
+NUM_CLASSES = 135
 
 
 def load_image(image_path: str) -> np.ndarray:
@@ -162,6 +173,9 @@ def run_comparison(
     Returns:
         Dictionary with comparison statistics
     """
+    # Configure TensorFlow to use CPU (Metal GPU produces incorrect results)
+    setup_tensorflow()
+
     # Find images
     input_path = Path(input_dir)
     png_files = sorted(input_path.glob("*.png"))
@@ -174,8 +188,7 @@ def run_comparison(
 
     # Load Keras model
     print(f"\nLoading Keras model from: {h5_model_path}")
-    keras_model = build_keras_model(NUM_CLASSES)
-    keras_model.load_weights(h5_model_path)
+    keras_model = load_keras_model(h5_model_path, NUM_CLASSES)
 
     # Load ONNX model
     print(f"Loading ONNX model from: {onnx_model_path}")

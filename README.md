@@ -1,6 +1,6 @@
 # PNW-Cnet-5 ONNX Conversion Tutorial
 
-This repository documents converting the [PNW-Cnet-5](https://github.com/zjruff/PNW-Cnet-5) bioacoustic classifier from Keras/TensorFlow to ONNX format, achieving **12x faster inference** on Apple Silicon using CoreML acceleration.
+This repository documents converting the [PNW-Cnet-5](https://github.com/zjruff/PNW-Cnet-5) bioacoustic classifier from Keras/TensorFlow to ONNX format, achieving **11x faster inference** on Apple Silicon using CoreML acceleration.
 
 This is meant to be informative and potentially help you if you are working with a similar model.
 
@@ -8,20 +8,24 @@ The discussion forum on this repo is open and let me know if you have any questi
 
 ## Results Summary
 
-| Metric | Keras (CPU) | ONNX (CoreML + ANE) |
-|--------|-------------|---------------------|
-| Time per image | 18.2ms | 1.5ms |
-| 3300 images | 60s | 5s |
-| Speedup | 1x | **12x** |
-| Classification accuracy | baseline | 100% match |
+| Metric | Keras (CPU) | ONNX | ONNX-slim |
+|--------|-------------|------|-----------|
+| Time per image | 16.6ms | 1.4ms | 1.6ms |
+| 3300 images | 55s | 4.7s | 5.3s |
+| Speedup | 1x | **11.6x** | **10.2x** |
+| Classification accuracy | baseline | 100% match | 100% match |
 
 ### Benchmark Environment
 
-- **Hardware:** Apple M2 (8-core CPU, 10-core GPU, 16-core Neural Engine)
+- **Hardware:** Apple M2 Pro (10-core CPU, 16-core GPU, 16-core Neural Engine)
 - **OS:** macOS 15 (Sequoia)
 - **Python:** 3.12
 - **ONNX Runtime:** 1.20+ with CoreMLExecutionProvider
 - **Dataset:** 3300 spectrogram images (257x1000 grayscale)
+
+### Apple Silicon Notes
+
+On Apple Silicon, TensorFlow's Metal GPU plugin can produce **incorrect results** for this model architecture. The comparison script automatically runs Keras in CPU-only mode. The ONNX models use CoreML which correctly leverages the Neural Engine and GPU.
 
 ## Quick Start
 
@@ -59,6 +63,16 @@ uv run python convert_to_onnx.py
 
 This converts `model/Final_Model.h5` to `model/Final_Model.onnx`.
 
+#### ONNX-slim (Optional)
+
+You can optionally optimize the ONNX model with [onnxslim](https://github.com/inisis/onnxslim) for a smaller file size:
+
+```bash
+uv run onnxslim model/Final_Model.onnx model/Final_Model_slim.onnx
+```
+
+In our benchmarks, ONNX-slim produces identical results but was slightly slower than the original ONNX model with CoreML. The file size reduction may still be useful for deployment.
+
 ### Run Inference
 
 **With ONNX (fast):**
@@ -79,7 +93,11 @@ uv run python run_inference.py output_spectrograms/
 Verify the ONNX conversion produces identical results:
 
 ```bash
+# Basic comparison
 uv run python compare_models.py output_spectrograms/
+
+# Compare all three models
+uv run python compare_models.py output_spectrograms/ --onnx-slim-model model/Final_Model_slim.onnx
 ```
 
 Output shows numerical differences, classification agreement, and performance comparison.
@@ -109,9 +127,10 @@ uv run python run_inference_onnx.py <input_dir> [options]
 ### compare_models.py
 ```bash
 uv run python compare_models.py <input_dir> [options]
-  --h5-model PATH     Keras model path
-  --onnx-model PATH   ONNX model path
-  --threshold FLOAT   Classification threshold
+  --h5-model PATH          Keras model path
+  --onnx-model PATH        ONNX model path
+  --onnx-slim-model PATH   ONNX-slim model path (optional)
+  --threshold FLOAT        Classification threshold
 ```
 
 ## References
