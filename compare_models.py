@@ -148,14 +148,14 @@ def run_comparison(
     sess_options.inter_op_num_threads = 0
     sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
 
-    # Try CoreML with NeuralNetwork format and GPU (avoid ANE which crashes on macOS 15)
+    # Try CoreML with all compute units including Neural Engine
     onnx_session = ort.InferenceSession(
         onnx_model_path,
         sess_options=sess_options,
         providers=[
             ("CoreMLExecutionProvider", {
                 "ModelFormat": "NeuralNetwork",
-                "MLComputeUnits": "CPUAndGPU",
+                "MLComputeUnits": "ALL",  # CPU + GPU + Neural Engine
             }),
             "CPUExecutionProvider",
         ],

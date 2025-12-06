@@ -115,7 +115,7 @@ uv run python run_inference_onnx.py output_spectrograms/ --model path/to/model.o
 uv run python run_inference_onnx.py output_spectrograms/ --batch-size 64
 ```
 
-The ONNX inference script uses CoreML GPU acceleration on macOS for ~8x speedup. The Neural Engine (ANE) is disabled due to [known crashes on macOS 15](https://developer.apple.com/forums/thread/763561).
+The ONNX inference script uses CoreML acceleration on macOS (CPU + GPU + Neural Engine) for ~12x speedup over the Keras model.
 
 ## Compare Models
 

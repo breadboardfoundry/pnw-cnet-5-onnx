@@ -109,7 +109,7 @@ def run_inference(
         providers=[
             ("CoreMLExecutionProvider", {
                 "ModelFormat": "NeuralNetwork",
-                "MLComputeUnits": "CPUAndGPU",  # Avoid ANE which crashes on macOS 15
+                "MLComputeUnits": "ALL",  # CPU + GPU + Neural Engine
             }),
             "CPUExecutionProvider",
         ],
