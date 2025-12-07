@@ -49,6 +49,17 @@ uv sync
 
 Download `.wav` files into a `recordings/` directory. You can use recordings from the [PNW-Cnet dataset](https://zenodo.org/records/10895837) or your own field recordings.
 
+```bash
+# Download dataset part 1 (extracts .wav files to recordings/)
+uv run python download_dataset.py
+
+# List available dataset parts
+uv run python download_dataset.py --list
+
+# Download a specific part
+uv run python download_dataset.py --part part2
+```
+
 ### Convert Audio to Spectrograms
 
 ```bash
@@ -109,6 +120,15 @@ uv run python compare_models.py output_spectrograms/ --onnx-slim-model model/Fin
 Output shows numerical differences, classification agreement, and performance comparison.
 
 ## Command Reference
+
+### download_dataset.py
+```bash
+uv run python download_dataset.py [options]
+  --list                List available dataset files
+  --part PART           Which part to download: part1, part2, part3, part4 (default: part1)
+  --output-dir PATH     Output directory (default: recordings)
+  --keep-zip            Keep the zip file after extraction
+```
 
 ### wav_to_spectrogram.py
 ```bash
