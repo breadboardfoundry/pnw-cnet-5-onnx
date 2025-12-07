@@ -51,23 +51,23 @@ Download `.wav` files into a `recordings/` directory. You can use recordings fro
 
 ```bash
 # Download dataset part 1 (extracts .wav files to recordings/)
-uv run python download_dataset.py
+uv run download_dataset.py
 
 # List available dataset parts
-uv run python download_dataset.py --list
+uv run download_dataset.py --list
 
 # Download a specific part
-uv run python download_dataset.py --part part2
+uv run download_dataset.py --part part2
 ```
 
 ### Convert Audio to Spectrograms
 
 ```bash
 # Single file
-uv run python wav_to_spectrogram.py recording.wav output_spectrograms/
+uv run wav_to_spectrogram.py recording.wav output_spectrograms/
 
 # Entire directory
-uv run python wav_to_spectrogram.py recordings/ output_spectrograms/
+uv run wav_to_spectrogram.py recordings/ output_spectrograms/
 ```
 
 Audio files are split into 12-second clips, each producing a 257x1000 grayscale spectrogram.
@@ -75,7 +75,7 @@ Audio files are split into 12-second clips, each producing a 257x1000 grayscale 
 ### Convert Model to ONNX
 
 ```bash
-uv run python convert_to_onnx.py
+uv run convert_to_onnx.py
 ```
 
 This converts `model/Final_Model.h5` to `model/Final_Model.onnx`.
@@ -94,15 +94,15 @@ In our benchmarks, ONNX-slim produces identical results but was slightly slower 
 
 **With ONNX (fast):**
 ```bash
-uv run python run_inference_onnx.py output_spectrograms/
+uv run run_inference_onnx.py output_spectrograms/
 
 # Export to CSV
-uv run python run_inference_onnx.py output_spectrograms/ --output predictions.csv
+uv run run_inference_onnx.py output_spectrograms/ --output predictions.csv
 ```
 
 **With Keras (for comparison):**
 ```bash
-uv run python run_inference.py output_spectrograms/
+uv run run_inference.py output_spectrograms/
 ```
 
 ### Compare Models
@@ -111,10 +111,10 @@ Verify the ONNX conversion produces identical results:
 
 ```bash
 # Basic comparison
-uv run python compare_models.py output_spectrograms/
+uv run compare_models.py output_spectrograms/
 
 # Compare all three models
-uv run python compare_models.py output_spectrograms/ --onnx-slim-model model/Final_Model_slim.onnx
+uv run compare_models.py output_spectrograms/ --onnx-slim-model model/Final_Model_slim.onnx
 ```
 
 Output shows numerical differences, classification agreement, and performance comparison.
@@ -123,7 +123,7 @@ Output shows numerical differences, classification agreement, and performance co
 
 ### download_dataset.py
 ```bash
-uv run python download_dataset.py [options]
+uv run download_dataset.py [options]
   --list                List available dataset files
   --part PART           Which part to download: part1, part2, part3, part4 (default: part1)
   --output-dir PATH     Output directory (default: recordings)
@@ -132,17 +132,17 @@ uv run python download_dataset.py [options]
 
 ### wav_to_spectrogram.py
 ```bash
-uv run python wav_to_spectrogram.py <input> <output_dir> [--clip-duration 12]
+uv run wav_to_spectrogram.py <input> <output_dir> [--clip-duration 12]
 ```
 
 ### convert_to_onnx.py
 ```bash
-uv run python convert_to_onnx.py [--input model.h5] [--output model.onnx] [--opset 13]
+uv run convert_to_onnx.py [--input model.h5] [--output model.onnx] [--opset 13]
 ```
 
 ### run_inference_onnx.py
 ```bash
-uv run python run_inference_onnx.py <input_dir> [options]
+uv run run_inference_onnx.py <input_dir> [options]
   --model PATH        ONNX model path (default: model/Final_Model.onnx)
   --threshold FLOAT   Confidence threshold (default: 0.5)
   --top-k INT         Top predictions to show (default: 5)
@@ -152,7 +152,7 @@ uv run python run_inference_onnx.py <input_dir> [options]
 
 ### compare_models.py
 ```bash
-uv run python compare_models.py <input_dir> [options]
+uv run compare_models.py <input_dir> [options]
   --h5-model PATH          Keras model path
   --onnx-model PATH        ONNX model path
   --onnx-slim-model PATH   ONNX-slim model path (optional)
