@@ -35,12 +35,15 @@ def get_onnx_providers() -> list:
 
 
 def setup_tensorflow():
-    """Configure TensorFlow to use CPU only (Metal GPU produces incorrect results)."""
-    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    """Configure TensorFlow. On macOS, disable Metal GPU (produces incorrect results)."""
     os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-    os.environ["TF_METAL_DEVICE_SELECTOR"] = ""
-    import tensorflow as tf
-    tf.config.set_visible_devices([], 'GPU')
+
+    if sys.platform == "darwin":
+        # Metal GPU produces incorrect results for this model on macOS
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        os.environ["TF_METAL_DEVICE_SELECTOR"] = ""
+        import tensorflow as tf
+        tf.config.set_visible_devices([], 'GPU')
 
 
 def load_keras_model(h5_model_path: str, nclasses: int):
