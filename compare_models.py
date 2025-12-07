@@ -44,6 +44,13 @@ def setup_tensorflow():
         os.environ["TF_METAL_DEVICE_SELECTOR"] = ""
         import tensorflow as tf
         tf.config.set_visible_devices([], 'GPU')
+    else:
+        # On Linux/Windows, enable memory growth so TensorFlow doesn't grab all GPU RAM
+        # (leaves room for ONNX Runtime)
+        import tensorflow as tf
+        gpus = tf.config.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
 
 
 def load_keras_model(h5_model_path: str, nclasses: int):
