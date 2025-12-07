@@ -2,7 +2,7 @@
 
 ![PNW-Cnet-5 ONNX Cover](cover.png)
 
-This repository documents converting the [PNW-Cnet-5](https://github.com/zjruff/PNW-Cnet-5) bioacoustic classifier from Keras/TensorFlow to ONNX format, achieving **11x faster inference** on Apple Silicon using CoreML acceleration vs CPU only.
+This repository documents converting the [PNW-Cnet-5](https://github.com/zjruff/PNW-Cnet-5) bioacoustic classifier from Keras/TensorFlow to ONNX format, achieving **8-12x faster inference** on Apple Silicon (CoreML) and NVIDIA GPUs (CUDA).
 
 This is meant to be informative and potentially help you if you are working with a similar model.
 
@@ -10,24 +10,35 @@ The discussion forum on this repo is open and let me know if you have any questi
 
 ## Results Summary
 
-| Metric | Keras (CPU) | ONNX | ONNX-slim |
-|--------|-------------|------|-----------|
-| Time per image | 16.6ms | 1.4ms | 1.6ms |
-| 3300 images | 55s | 4.7s | 5.3s |
-| Speedup | 1x | **11.6x** | **10.2x** |
-| Classification accuracy | baseline | 100% match | 100% match |
+### NVIDIA A100 (Linux)
 
-### Benchmark Environment
+| Metric | Keras (GPU) | ONNX (CUDA) |
+|--------|-------------|-------------|
+| Time per image | 4.52ms | 0.53ms |
+| 3300 images | 14.9s | 1.76s |
+| Speedup | 1x | **8.5x** |
+
+- **Hardware:** [Lambda Labs 1x A100](https://lambdalabs.com/service/gpu-cloud) (NVIDIA A100-SXM4-40GB, 30 CPU cores, 200GB RAM)
+- **OS:** Ubuntu Linux
+- **ONNX Runtime:** 1.20+ with CUDAExecutionProvider, cuDNN 9.x
+
+### Apple Silicon (M2 Pro)
+
+| Metric | Keras (CPU) | ONNX (CoreML) |
+|--------|-------------|---------------|
+| Time per image | 16.6ms | 1.4ms |
+| 3300 images | 55s | 4.7s |
+| Speedup | 1x | **11.6x** |
 
 - **Hardware:** Apple M2 Pro (10-core CPU, 16-core GPU, 16-core Neural Engine)
 - **OS:** macOS 15 (Sequoia)
-- **Python:** 3.12
 - **ONNX Runtime:** 1.20+ with CoreMLExecutionProvider
-- **Dataset:** 3300 spectrogram images (257x1000 grayscale)
 
-### Apple Silicon Notes
+> **Note:** On Apple Silicon, TensorFlow's Metal GPU plugin produces incorrect results for this model architecture. The comparison script automatically runs Keras in CPU-only mode. ONNX uses CoreML which correctly leverages the Neural Engine and GPU.
 
-On Apple Silicon, TensorFlow's Metal GPU plugin can produce **incorrect results** for this model architecture. The comparison script automatically runs Keras in CPU-only mode. The ONNX models use CoreML which correctly leverages the Neural Engine and GPU.
+### Classification Accuracy
+
+Both platforms show **100% classification match** between Keras and ONNX models. Minor floating-point differences (max ~0.001) do not affect predictions.
 
 ## Quick Start
 
@@ -35,11 +46,14 @@ On Apple Silicon, TensorFlow's Metal GPU plugin can produce **incorrect results*
 
 - Python 3.10-3.12
 - [sox](http://sox.sourceforge.net/) for audio processing
-- macOS with Apple Silicon (for CoreML acceleration)
+- macOS with Apple Silicon, or Linux with NVIDIA GPU (CUDA 12.x, cuDNN 9.x)
 
 ```bash
 # Install sox
+# macOS
 brew install sox
+# Ubuntu/Debian
+sudo apt install sox
 
 # Install Python dependencies
 uv sync
@@ -168,3 +182,7 @@ uv run compare_models.py <input_dir> [options]
 ## Reference Scripts
 
 The `reference_scripts/` directory contains the original model architecture and training scripts from [PNW-Cnet-5](https://github.com/zjruff/PNW-Cnet-5).
+
+---
+
+*This tutorial was created by [Bread Board Foundry](https://www.breadboardfoundry.com/). We're building [Pandoro](https://github.com/breadboardfoundry/pandoro), GPU infrastructure for research teams who need predictable compute access without the overhead. If you're running ML experiments and struggling with compute access, we'd love to chat: hello@breadboardfoundry.com*
