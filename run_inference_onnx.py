@@ -6,12 +6,30 @@ and runs them through the ONNX-converted classifier to predict species.
 """
 
 import argparse
-import os
+import sys
 from pathlib import Path
 
 import numpy as np
 import onnxruntime as ort
 from PIL import Image
+
+
+def get_onnx_providers() -> list:
+    """Get the best available ONNX execution providers for the current platform."""
+    available = ort.get_available_providers()
+
+    if sys.platform == "darwin" and "CoreMLExecutionProvider" in available:
+        return [
+            ("CoreMLExecutionProvider", {
+                "ModelFormat": "NeuralNetwork",
+                "MLComputeUnits": "ALL",
+            }),
+            "CPUExecutionProvider",
+        ]
+    elif "CUDAExecutionProvider" in available:
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    else:
+        return ["CPUExecutionProvider"]
 
 
 # Class labels for the 135 bioacoustic categories (from Train_Model.py)
@@ -98,21 +116,18 @@ def run_inference(
     Returns:
         Dictionary mapping filenames to predictions
     """
-    # Load ONNX model with CoreML GPU acceleration
+    # Load ONNX model with hardware acceleration
     print(f"Loading ONNX model from: {model_path}")
     sess_options = ort.SessionOptions()
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
+    providers = get_onnx_providers()
+    print(f"  Using providers: {[p if isinstance(p, str) else p[0] for p in providers]}")
+
     session = ort.InferenceSession(
         model_path,
         sess_options=sess_options,
-        providers=[
-            ("CoreMLExecutionProvider", {
-                "ModelFormat": "NeuralNetwork",
-                "MLComputeUnits": "ALL",  # CPU + GPU + Neural Engine
-            }),
-            "CPUExecutionProvider",
-        ],
+        providers=providers,
     )
 
     # Get input/output names

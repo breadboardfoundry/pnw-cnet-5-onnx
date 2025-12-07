@@ -7,12 +7,31 @@ the outputs to verify the ONNX conversion is accurate and measure performance.
 
 import argparse
 import os
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import onnxruntime as ort
 from PIL import Image
+
+
+def get_onnx_providers() -> list:
+    """Get the best available ONNX execution providers for the current platform."""
+    available = ort.get_available_providers()
+
+    if sys.platform == "darwin" and "CoreMLExecutionProvider" in available:
+        return [
+            ("CoreMLExecutionProvider", {
+                "ModelFormat": "NeuralNetwork",
+                "MLComputeUnits": "ALL",
+            }),
+            "CPUExecutionProvider",
+        ]
+    elif "CUDAExecutionProvider" in available:
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    else:
+        return ["CPUExecutionProvider"]
 
 
 def setup_tensorflow():
@@ -116,23 +135,18 @@ def load_images_batch(image_paths: list[str]) -> np.ndarray:
 
 
 def create_onnx_session(model_path: str) -> ort.InferenceSession:
-    """Create an ONNX Runtime session with CoreML optimization."""
+    """Create an ONNX Runtime session with hardware acceleration."""
     sess_options = ort.SessionOptions()
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     sess_options.intra_op_num_threads = 0  # 0 = use all available cores
     sess_options.inter_op_num_threads = 0
     sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
 
+    providers = get_onnx_providers()
     return ort.InferenceSession(
         model_path,
         sess_options=sess_options,
-        providers=[
-            ("CoreMLExecutionProvider", {
-                "ModelFormat": "NeuralNetwork",
-                "MLComputeUnits": "ALL",  # CPU + GPU + Neural Engine
-            }),
-            "CPUExecutionProvider",
-        ],
+        providers=providers,
     )
 
 
